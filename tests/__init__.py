@@ -1,0 +1,1 @@
+"""Fictus test suite."""
