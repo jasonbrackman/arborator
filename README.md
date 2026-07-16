@@ -124,8 +124,9 @@ path = Path("c:\\fictus")
 FictusDisplay(ffs).reforestation(path)
 ```
 
-This will create all folders and files represented in the FFS under the `path` provided. File internals will be \
-an empty `utf-8` string.
+This creates the folders and empty `utf-8` files represented by the current FFS subtree under the provided `path`.
+Existing directories are reused, but existing files are protected by default. To intentionally replace existing files,
+pass `overwrite=True`. Names that could escape the destination (for example `../file`) are rejected.
 <HR>
 
 ### Renderer

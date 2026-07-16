@@ -1,0 +1,15 @@
+# Python caches and local environments
+__pycache__/
+*.py[cod]
+.venv/
+.mypy_cache/
+
+# Build and packaging output
+build/
+dist/
+*.egg-info/
+
+# Local IDE and environment configuration
+.idea/
+.env
+.pypirc

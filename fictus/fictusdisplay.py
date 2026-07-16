@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import List, Set, Optional, Tuple
+from typing import Optional
 
 from .constants import PIPE, SPACER_PREFIX, ELBOW, TEE, SPACER
+from .fictusexception import FictusException
 from .fictusfilesystem import FictusFileSystem
 from .fictusnode import Folder, Node, File
 from .renderer import Renderer, defaultRenderer, RenderTagEnum
@@ -14,7 +15,7 @@ class FictusDisplay:
     def __init__(self, ffs: FictusFileSystem):
         self._ffs = ffs
         self._renderer = defaultRenderer
-        self._ignore: Set[int] = set()
+        self._ignore: set[int] = set()
 
     @property
     def renderer(self) -> Renderer:
@@ -57,7 +58,7 @@ class FictusDisplay:
         return f'{"".join(parts)}{self._wrap_node_name_with_tags(node)}'
 
     @staticmethod
-    def _custom_sort(nodes: List[Node]) -> List[Node]:
+    def _custom_sort(nodes: list[Node]) -> list[Node]:
         """Reverse sort the children by file, then name."""
         return sorted(nodes, key=lambda x: (isinstance(x, File), x.value.lower()), reverse=True)
 
@@ -76,9 +77,9 @@ class FictusDisplay:
 
         prefix: int = -1  # not set
 
-        buffer: List[str] = []
+        buffer: list[str] = []
 
-        q: List[Tuple[Node, bool]] = [(node_start, True)]
+        q: list[tuple[Node, bool]] = [(node_start, True)]
         while q:
             node, last = q.pop()
             if last is False:
@@ -112,39 +113,56 @@ class FictusDisplay:
 
     # Reforestation methods - - - - - - -
     @staticmethod
-    def _reforestation_path(node) -> str:
-        parts = []
-        while node:
-            parts.append(node.value)
-            node = node.parent
-        return '//'.join(reversed(parts))
+    def _validate_output_name(name: str) -> None:
+        """Ensure a virtual node name cannot escape the output directory."""
+        if not name or name in {".", ".."} or "/" in name or "\\" in name:
+            raise FictusException(
+                f"Cannot materialize unsafe virtual node name {name!r}."
+            )
 
-    def reforestation(self, path: Path, encoding='utf-8') -> None:
+    @staticmethod
+    def _path_within(candidate: Path, destination: Path) -> bool:
+        try:
+            candidate.resolve().relative_to(destination)
+        except ValueError:
+            return False
+        return True
+
+    def reforestation(
+        self, path: Path, encoding: str = "utf-8", overwrite: bool = False
+    ) -> None:
         """
-        Take the Fictus File System and generate the structure on disk using the path
-        passed in as the root.
+        Materialize the current virtual subtree under ``path``.
+
+        Existing directories are reused. Existing files are preserved unless
+        ``overwrite`` is explicitly True. Virtual node names that could escape the
+        destination directory are rejected.
         """
+        destination = Path(path).resolve()
+        if destination.exists() and not destination.is_dir():
+            raise FictusException(f"Output path must be a directory: {destination}")
+        destination.mkdir(parents=True, exist_ok=True)
+
         node_start = self._ffs.current()
-        q: List[Tuple[Node, bool]] = [(node_start, True)]
+        q: list[tuple[Node, Path]] = [(node_start, destination)]
         while q:
-            node, last = q.pop()
-            if last is False:
-                if node.height in self._ignore:
-                    self._ignore.remove(node.height)
-
-            real_path = path / self._reforestation_path(node)
+            node, real_path = q.pop()
             if isinstance(node, Folder):
                 real_path.mkdir(parents=True, exist_ok=True)
             else:
+                if real_path.exists() and not overwrite:
+                    raise FictusException(
+                        f"Refusing to overwrite existing file: {real_path}"
+                    )
                 with real_path.open("w", encoding=encoding) as f:
-                    f.write('')
+                    f.write("")
 
             if isinstance(node, Folder):
-                children = self._custom_sort(node.children)
-
-                sorted_children = [(child, False) for child in children]
-                if sorted_children:
-                    c, _ = sorted_children[0]
-                    sorted_children[0] = (c, True)
-
-                q += sorted_children
+                for child in node.children:
+                    self._validate_output_name(child.value)
+                    child_path = real_path / child.value
+                    if not self._path_within(child_path, destination):
+                        raise FictusException(
+                            f"Refusing to write outside output path: {child_path}"
+                        )
+                    q.append((child, child_path))

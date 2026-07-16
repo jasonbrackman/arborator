@@ -1,7 +1,9 @@
 import os
+from pathlib import Path
+from tempfile import TemporaryDirectory
 import unittest
 
-from fictus import FictusFileSystem
+from fictus import FictusDisplay, FictusFileSystem
 from fictus.fictusexception import FictusException
 
 
@@ -108,6 +110,49 @@ class MyTestCase(unittest.TestCase):
     def test_invalid_root(self):
         with self.assertRaises(FictusException):
             FictusFileSystem("c")
+
+    def test_reforestation_writes_under_destination(self):
+        self.fs.mkdir("docs")
+        self.fs.cd("docs")
+        self.fs.mkfile("readme.txt")
+        self.fs.cd("/")
+
+        with TemporaryDirectory() as temp:
+            destination = Path(temp) / "output"
+            FictusDisplay(self.fs).reforestation(destination)
+
+            self.assertTrue((destination / "docs" / "readme.txt").is_file())
+
+    def test_reforestation_preserves_existing_files_by_default(self):
+        self.fs.mkfile("readme.txt")
+
+        with TemporaryDirectory() as temp:
+            destination = Path(temp)
+            existing_file = destination / "readme.txt"
+            existing_file.write_text("keep me", encoding="utf-8")
+
+            with self.assertRaises(FictusException):
+                FictusDisplay(self.fs).reforestation(destination)
+
+            self.assertEqual("keep me", existing_file.read_text(encoding="utf-8"))
+
+    def test_reforestation_can_overwrite_when_explicitly_requested(self):
+        self.fs.mkfile("readme.txt")
+
+        with TemporaryDirectory() as temp:
+            existing_file = Path(temp) / "readme.txt"
+            existing_file.write_text("replace me", encoding="utf-8")
+
+            FictusDisplay(self.fs).reforestation(Path(temp), overwrite=True)
+
+            self.assertEqual("", existing_file.read_text(encoding="utf-8"))
+
+    def test_reforestation_rejects_unsafe_node_names(self):
+        self.fs.mkfile("../outside.txt")
+
+        with TemporaryDirectory() as temp:
+            with self.assertRaises(FictusException):
+                FictusDisplay(self.fs).reforestation(Path(temp))
 
 if __name__ == "__main__":
     unittest.main()
