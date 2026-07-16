@@ -161,6 +161,7 @@ class MyTestCase(unittest.TestCase):
             source = Path(temp) / "source"
             (source / "empty").mkdir(parents=True)
             (source / "nested").mkdir()
+            (source / "root.txt").write_text("root", encoding="utf-8")
             (source / "nested" / "note.txt").write_text("note", encoding="utf-8")
 
             output = StringIO()
@@ -169,7 +170,10 @@ class MyTestCase(unittest.TestCase):
 
             self.assertEqual("", output.getvalue())
             self.assertEqual(os.sep, fs.cwd())
-            self.assertEqual({"empty", "nested"}, {child.value for child in fs.root().children})
+            self.assertEqual(
+                {"empty", "nested", "root.txt"},
+                {child.value for child in fs.root().children},
+            )
             fs.cd("nested")
             self.assertEqual({"note.txt"}, {child.value for child in fs.current().children})
 

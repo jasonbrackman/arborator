@@ -56,9 +56,11 @@ class FictusFileSystem:
         for root, directories, files in os.walk(source):
             relative_root = Path(root).relative_to(source)
             if relative_root.parts:
+                ffs._to_root()
                 ffs.mkdir(relative_root.as_posix())
 
             for directory in directories:
+                ffs._to_root()
                 ffs.mkdir((relative_root / directory).as_posix())
 
             for file_name in files:
