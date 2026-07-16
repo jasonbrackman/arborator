@@ -65,6 +65,10 @@ from fictus import FictusFileSystem
 local_path = Path(r"c:\temp")
 ffs = FictusFileSystem.init_from_path(local_path)
 ```
+
+The supplied directory becomes the virtual root, so `ffs` contains `c:\temp`'s
+contents rather than the absolute `c:\temp` path. Supplying a file creates that
+file at the virtual root.
 <HR>
 
 ### FictusDisplay

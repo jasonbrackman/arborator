@@ -1,4 +1,6 @@
 import os
+from contextlib import redirect_stdout
+from io import StringIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
@@ -153,6 +155,40 @@ class MyTestCase(unittest.TestCase):
         with TemporaryDirectory() as temp:
             with self.assertRaises(FictusException):
                 FictusDisplay(self.fs).reforestation(Path(temp))
+
+    def test_init_from_path_uses_directory_contents_as_virtual_root(self):
+        with TemporaryDirectory() as temp:
+            source = Path(temp) / "source"
+            (source / "empty").mkdir(parents=True)
+            (source / "nested").mkdir()
+            (source / "nested" / "note.txt").write_text("note", encoding="utf-8")
+
+            output = StringIO()
+            with redirect_stdout(output):
+                fs = FictusFileSystem.init_from_path(source)
+
+            self.assertEqual("", output.getvalue())
+            self.assertEqual(os.sep, fs.cwd())
+            self.assertEqual({"empty", "nested"}, {child.value for child in fs.root().children})
+            fs.cd("nested")
+            self.assertEqual({"note.txt"}, {child.value for child in fs.current().children})
+
+    def test_init_from_path_places_a_file_at_virtual_root(self):
+        with TemporaryDirectory() as temp:
+            source = Path(temp) / "note.txt"
+            source.write_text("note", encoding="utf-8")
+
+            fs = FictusFileSystem.init_from_path(source)
+
+            self.assertEqual(os.sep, fs.cwd())
+            self.assertEqual({"note.txt"}, {child.value for child in fs.root().children})
+
+    def test_init_from_path_rejects_missing_path(self):
+        with TemporaryDirectory() as temp:
+            missing_path = Path(temp) / "missing"
+
+            with self.assertRaises(FictusException):
+                FictusFileSystem.init_from_path(missing_path)
 
 if __name__ == "__main__":
     unittest.main()

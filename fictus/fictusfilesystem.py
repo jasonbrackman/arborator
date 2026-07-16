@@ -1,9 +1,8 @@
 """Contains the class and its methods directly related to the FictusFileSystem."""
 
-import os.path
+import os
 from pathlib import Path
-import platform
-from typing import Set, Optional
+from typing import Optional
 
 from .fictusexception import FictusException
 from .fictusnode import File, Folder, Node
@@ -34,41 +33,41 @@ class FictusFileSystem:
     @classmethod
     def init_from_path(cls, path: Path) -> "FictusFileSystem":
         """
-        From a given path search for and create a mirrored FFS based on file(s) found on disk.
+        Create an FFS from a file or directory on disk.
 
-        @param path: A valid Path.  If a file only adds the file.  If a directory will iterate
-                     over all files to build out the FFS.
+        The provided directory becomes the logical root of the returned FFS: its
+        contents are represented directly below ``/`` rather than preserving the
+        source's absolute path. If ``path`` is a file, that file is placed at the
+        virtual root.
 
-        @return FictusFileSystem
+        Raises:
+            FictusException: If ``path`` does not exist.
         """
+        source = Path(path).expanduser().resolve()
+        if not source.exists():
+            raise FictusException(f"Path does not exist: {source}")
 
-        def get_volume_name(path: Path):
-            # Create a Path object
-            if platform.system() == "Windows":
-                # Use drive for Windows
-                return path.drive  # e.g., "C:"
-            else:
-                # Use anchor for macOS/Linux
-                return path.anchor  # e.g., "/Volumes/MyDrive/"
+        ffs = cls()
 
-        ffs = FictusFileSystem(get_volume_name(path))
+        if source.is_file():
+            ffs.mkfile(source.name)
+            return ffs
 
-        if path.is_file():
-            ffs.add_directory_and_file(path.as_posix())
-        else:
-            for root, _dirs, files in os.walk(path):
+        for root, directories, files in os.walk(source):
+            relative_root = Path(root).relative_to(source)
+            if relative_root.parts:
+                ffs.mkdir(relative_root.as_posix())
 
-                # Create directories, even if empty
-                parts = root.split(os.sep)
-                new_root = os.sep.join(parts[1:])
-                for d in _dirs:
-                    ffs.cd(os.sep)
-                    ffs.mkdir(new_root + os.sep + d)
+            for directory in directories:
+                ffs.mkdir((relative_root / directory).as_posix())
 
-                for file in files:
-                    ffs.add_directory_and_file(os.path.join(root, file))
+            for file_name in files:
+                ffs._to_root()
+                if relative_root.parts:
+                    ffs.cd(relative_root.as_posix())
+                ffs.mkfile(file_name)
 
-        ffs.cd(path.root)
+        ffs._to_root()
 
         return ffs
 
@@ -126,7 +125,7 @@ class FictusFileSystem:
 
     def mkfile(self, *files: str) -> None:
         """Takes one or more filenames and adds them to the cwd."""
-        visited: Set[str] = {
+        visited: set[str] = {
             f.value for f in self._current.children if isinstance(f, File)
         }
         for file in files:
