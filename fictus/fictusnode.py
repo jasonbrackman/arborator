@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List, TypeVar, Generic, Optional
+from typing import TypeVar, Generic, Optional
 
 T = TypeVar("T")
 
@@ -12,7 +12,7 @@ class Node(Generic[T]):
 
     value: T
     parent: Optional[Node]
-    children: List[Node] = field(default_factory=list)
+    children: list[Node] = field(default_factory=list)
 
     _height: int = field(init=False, default=0)
 
@@ -39,7 +39,7 @@ class File(Node):
 
 class Folder(Node):
     def __init__(
-        self, name, parent: Optional[Node], children: Optional[List[Node]] = None
+        self, name, parent: Optional[Node], children: Optional[list[Node]] = None
     ):
         if children is None:
             children = []
